@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0d13">
+<title>Мини-стратегия: Эпохи, Генералы, Отступление</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0a0d13;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none}
+  canvas{position:fixed;inset:0;display:block}
+
+  #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;
+    align-items:flex-start;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;
+    font-size:13px;pointer-events:none;letter-spacing:.5px;z-index:4}
+  #hud .p{color:#6fd0ff}
+  #hud .e{color:#ff7286}
+  #hud .hint{position:absolute;left:0;right:0;top:34px;text-align:center;
+    font-size:10.5px;color:#7a8ba0;opacity:.85;padding:0 12px}
+
+  #topBtns{position:fixed;right:10px;top:calc(30px + env(safe-area-inset-top));
+    display:flex;flex-direction:column;gap:6px;z-index:6}
+  .tb{padding:6px 10px;border-radius:10px;font-size:10.5px;color:#9fc6e8;
+    border:1px solid rgba(120,180,255,.25);background:rgba(20,30,45,.72);
+    letter-spacing:.5px;text-align:center}
+  .tb.on{color:#ffe38a;border-color:#e8c46a;background:rgba(90,70,20,.5)}
+  .tb.retreatP{color:#a0ffc0;border-color:#60c080;background:rgba(20,70,40,.55)}
+  .tb.retreatE{color:#ffb0b0;border-color:#c06060;background:rgba(70,20,25,.55)}
+
+  /* тайм-контроль */
+  #timeBar{position:fixed;left:50%;transform:translateX(-50%);
+    top:calc(30px + env(safe-area-inset-top));display:flex;gap:5px;z-index:6}
+  #timeBar .tm{padding:5px 9px;border-radius:9px;font-size:11px;color:#9fc6e8;
+    border:1px solid rgba(120,180,255,.25);background:rgba(20,30,45,.72)}
+  #timeBar .tm.sel{color:#fff;background:rgba(80,180,255,.3);border-color:#7fd0ff}
+
+  /* индикатор хода боя */
+  #battleBar{position:fixed;left:50%;transform:translateX(-50%);
+    top:calc(64px + env(safe-area-inset-top));width:min(340px, 60vw);
+    height:16px;border-radius:8px;overflow:hidden;z-index:5;
+    border:1px solid rgba(120,180,255,.25);background:rgba(10,14,20,.7);
+    display:flex;font-size:9px;letter-spacing:1px;color:#dff0ff;
+    pointer-events:none}
+  #battleBar .side{display:flex;align-items:center;justify-content:center;
+    transition:width .2s;overflow:hidden;white-space:nowrap}
+  #battleBar .side.p{background:linear-gradient(90deg,rgba(62,168,255,.75),rgba(62,168,255,.35))}
+  #battleBar .side.e{background:linear-gradient(90deg,rgba(255,77,106,.35),rgba(255,77,106,.75))}
+
+  /* мини-панель приказов */
+  #orders{position:fixed;left:8px;top:calc(96px + env(safe-area-inset-top));
+    display:none;flex-direction:column;gap:5px;z-index:6}
+  #orders.on{display:flex}
+  #orders .ob{padding:5px 9px;border-radius:9px;font-size:10px;color:#cfe6ff;
+    border:1px solid rgba(120,180,255,.3);background:rgba(20,30,45,.85)}
+  #orders .ob.sel{background:rgba(80,180,255,.28);border-color:#7fd0ff;color:#fff}
+  #orders .ob.ret{border-color:rgba(120,220,140,.5);color:#c0ffd0}
+
+  #selInfo{position:fixed;left:8px;top:calc(285px + env(safe-area-inset-top));
+    display:none;font-size:10px;color:#9fc6e8;background:rgba(20,30,45,.72);
+    border:1px solid rgba(120,180,255,.2);border-radius:9px;padding:6px 9px;
+    max-width:180px;line-height:1.4;z-index:6}
+  #selInfo.on{display:block}
+
+  #bar{position:fixed;left:0;right:0;bottom:0;display:flex;flex-direction:column;gap:6px;
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top,rgba(8,10,16,.98),rgba(8,10,16,.82));z-index:5}
+  #eras,#classes{display:flex;gap:5px;overflow-x:auto;padding-bottom:2px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  #eras::-webkit-scrollbar,#classes::-webkit-scrollbar{scrollbar-width:none;display:none}
+  .era{flex:0 0 auto;padding:6px 10px;border-radius:8px;font-size:10.5px;
+    color:#8aa;border:1px solid rgba(120,180,255,.15);white-space:nowrap;
+    background:rgba(255,255,255,.02);transition:.12s}
+  .era.sel{color:#eaf6ff;background:rgba(80,180,255,.16);border-color:#59b6ff}
+
+  #units{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+  #units::-webkit-scrollbar{display:none}
+  .btn{flex:0 0 22%;min-width:64px;border:1px solid rgba(90,170,255,.25);border-radius:12px;
+    padding:7px 3px;text-align:center;color:#9fc6e8;font-size:10.5px;line-height:1.25;
+    background:rgba(255,255,255,.03);transition:.12s}
+  .btn .n{display:block;font-size:12px;font-weight:700;color:#dff0ff}
+  .btn .c{display:block;font-size:10px;opacity:.8;margin-top:2px}
+  .btn.sel{background:rgba(80,180,255,.18);border-color:#59b6ff;color:#eaf6ff;
+    box-shadow:inset 0 0 0 1px rgba(90,180,255,.35)}
+  .btn.off{opacity:.38}
+
+  /* общие оверлеи */
+  #over,#setup,#stats{position:fixed;inset:0;display:none;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;text-align:center;padding:18px;
+    background:rgba(6,8,13,.92);backdrop-filter:blur(4px);z-index:10;overflow-y:auto}
+  #over.on,#setup.on,#stats.on{display:flex}
+  #over h1{margin:0;font-size:26px;letter-spacing:2px}
+  button{padding:11px 26px;border-radius:12px;border:1px solid #59b6ff;
+    background:rgba(80,180,255,.15);color:#eaf6ff;font-size:14px;font-family:inherit;
+    letter-spacing:1px}
+  button.alt{border-color:rgba(140,255,180,.5);color:#c0ffd0;background:rgba(40,120,70,.25)}
+  #setup h2,#stats h2{margin:0 0 4px;font-size:16px;letter-spacing:2px;color:#dff0ff}
+  .grp{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:520px}
+  .opt{padding:8px 12px;border-radius:10px;font-size:11.5px;color:#9fc6e8;
+    border:1px solid rgba(120,180,255,.2);background:rgba(255,255,255,.03)}
+  .opt.sel{color:#eaf6ff;background:rgba(80,180,255,.18);border-color:#59b6ff}
+  .lbl{font-size:11px;color:#7a8ba0;letter-spacing:1px;margin-top:6px}
+  .sw{display:flex;align-items:center;gap:8px;font-size:12px;color:#9fc6e8}
+  .sw .dot{width:34px;height:18px;border-radius:9px;background:rgba(255,255,255,.12);
+    position:relative;transition:.15s}
+  .sw .dot::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;
+    border-radius:50%;background:#9fc6e8;transition:.15s}
+  .sw.on .dot{background:rgba(80,200,120,.4)}
+  .sw.on .dot::after{left:18px;background:#8effa8}
+
+  /* статистика */
+  #stats .cols{display:flex;gap:14px;width:100%;max-width:900px;justify-content:center;
+    flex-wrap:wrap}
+  .col{flex:1;min-width:260px;max-width:420px;background:rgba(255,255,255,.03);
+    border:1px solid rgba(120,180,255,.15);border-radius:12px;padding:10px}
+  .col h3{margin:0 0 8px;font-size:13px;letter-spacing:1.5px}
+  .col.p h3{color:#7fd0ff}
+  .col.e h3{color:#ff8a99}
+  .col .summary{font-size:11px;color:#9fc6e8;margin-bottom:8px;line-height:1.5}
+  .tbl{width:100%;border-collapse:collapse;font-size:10px}
+  .tbl th{text-align:left;color:#7a8ba0;font-weight:400;padding:3px 4px;
+    border-bottom:1px solid rgba(120,180,255,.15)}
+  .tbl td{padding:3px 4px;color:#dff0ff;border-bottom:1px solid rgba(120,180,255,.06)}
+  .tbl .alive{color:#8effa8}
+  .tbl .dead{color:#ff8a99;text-decoration:line-through;opacity:.6}
+  .tbl .n{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* тост-уведомление */
+  #toast{position:fixed;left:50%;bottom:calc(200px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);padding:8px 14px;border-radius:10px;
+    background:rgba(20,40,60,.92);border:1px solid rgba(120,200,255,.4);
+    color:#dff0ff;font-size:11px;letter-spacing:.5px;opacity:0;transition:.25s;
+    z-index:9;pointer-events:none;max-width:80vw;text-align:center}
+  #toast.on{opacity:1}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="p" id="gp">◆ 50</div>
+  <div class="e" id="ge">50 ◆</div>
+  <div class="hint" id="hint">Тап — поставить. Долгий тап по юниту — выделить отряд.</div>
+</div>
+
+<div id="topBtns">
+  <div class="tb" id="sbBtn">ПЕСОЧНИЦА: ВЫКЛ</div>
+  <div class="tb" id="ffBtn">СВОБОДНАЯ СТАВКА: ВКЛ</div>
+  <div class="tb" id="pathBtn">ТРАЕКТОРИЯ: ВЫКЛ</div>
+  <div class="tb retreatP" id="retP">ОТСТУПИТЬ (СИНИЕ)</div>
+  <div class="tb retreatE" id="retE">ОТСТУПИТЬ (КРАСНЫЕ)</div>
+  <div class="tb" id="setupBtn">КАРТА</div>
+</div>
+
+<div id="timeBar">
+  <div class="tm" data-sp="0.25">0.25x</div>
+  <div class="tm" data-sp="0.5">0.5x</div>
+  <div class="tm sel" data-sp="1">1x</div>
+  <div class="tm" data-sp="2">2x</div>
+  <div class="tm" data-sp="4">4x</div>
+</div>
+
+<div id="battleBar">
+  <div class="side p" id="bbP" style="width:50%">СИНИЕ</div>
+  <div class="side e" id="bbE" style="width:50%">КРАСНЫЕ</div>
+</div>
+
+<div id="orders">
+  <div class="ob" data-o="attack">АТАКА ВРАГА</div>
+  <div class="ob" data-o="hold">ДЕРЖАТЬ ПОЗИЦИЮ</div>
+  <div class="ob" data-o="patrol">ПАТРУЛЬ</div>
+  <div class="ob" data-o="follow">СЛЕДОВАТЬ ЗА ГЕНЕРАЛОМ</div>
+  <div class="ob" data-o="manual">РУЧНОЕ УПРАВЛЕНИЕ</div>
+  <div class="ob ret" data-o="retreat">ОТСТУПИТЬ ОТРЯДОМ</div>
+  <div class="ob" data-o="clearSel">СНЯТЬ ВЫДЕЛЕНИЕ</div>
+</div>
+
+<div id="selInfo"></div>
+
+<div id="bar">
+  <div id="eras"></div>
+  <div id="classes"></div>
+  <div id="units"></div>
+</div>
+
+<div id="setup">
+  <h2>НАСТРОЙКА БОЯ</h2>
+  <div class="lbl">БИОМ</div>
+  <div class="grp" id="biomeOpts"></div>
+  <div class="lbl">ВОДА</div>
+  <div class="grp" id="waterOpts"></div>
+  <div class="lbl">КРЕПОСТЬ</div>
+  <div class="grp" id="fortOpts"></div>
+  <div class="lbl">РЕЖИМ</div>
+  <div class="grp">
+    <div class="sw" id="swFF"><span class="dot"></span><span>Свободная ставка</span></div>
+    <div class="sw" id="swPath"><span class="dot"></span><span>Рисовать траекторию</span></div>
+    <div class="sw" id="swHeal"><span class="dot"></span><span>Лечение в безопасной зоне</span></div>
+  </div>
+  <button id="startBtn">НАЧАТЬ БОЙ</button>
+</div>
+
+<div id="over">
+  <h1 id="ovt">ПОБЕДА</h1>
+  <button id="rst">ЗАНОВО</button>
+</div>
+
+<div id="stats">
+  <h2 id="statsTitle">СТАТИСТИКА БОЯ</h2>
+  <div class="cols">
+    <div class="col p">
+      <h3>СИНИЕ (вы)</h3>
+      <div class="summary" id="sumP"></div>
+      <table class="tbl" id="tblP"></table>
+    </div>
+    <div class="col e">
+      <h3>КРАСНЫЕ (враг)</h3>
+      <div class="summary" id="sumE"></div>
+      <table class="tbl" id="tblE"></table>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+    <button id="copyStats" class="alt">СКОПИРОВАТЬ</button>
+    <button id="closeStats">ЗАКРЫТЬ</button>
+    <button id="againBtn">НОВЫЙ БОЙ</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ================= РОСТЕР ================= */
+const T = (name, cost, hp, dmg, range, speed, cd, r, shape) =>
+  ({ name, cost, hp, dmg, range, speed, cd, r, shape });
+
+const ERAS = [
+  { name:'Древний мир', color:'#d4a961', units:[
+    T('Дубинщик',     8,  60,  5, 22, 50, 0.70, 9,  'circle'),
+    T('Гоплит',      15,  95,  8, 28, 44, 0.65, 10, 'square'),
+    T('Легионер',    20,  65, 11, 26, 48, 0.60, 9,  'circle'),
+    T('Пращник',     22,  35,  7,105, 42, 0.85, 6,  'tri'),
+    T('Лучник',      26,  42,  9,120, 42, 0.90, 7,  'tri'),
+    T('Копейщик',    28, 105, 14, 34, 40, 0.85, 10, 'hex'),
+    T('Колесница',   60, 180, 22, 30, 58, 0.90, 13, 'square'),
+    T('Слон',        90, 400, 40, 30, 30, 1.30, 16, 'hex'),
+  ]},
+  { name:'Средневековье', color:'#9db4d0', units:[
+    T('Ополченец',   10,  70,  6, 24, 46, 0.75, 9,  'circle'),
+    T('Мечник',      28, 100, 14, 26, 46, 0.65, 9,  'circle'),
+    T('Рыцарь',      42, 190, 16, 30, 34, 0.90, 12, 'square'),
+    T('Арбалетчик',  34,  50, 12,125, 40, 1.00, 7,  'tri'),
+    T('Пикинёр',     30, 115, 15, 40, 38, 0.90, 10, 'hex'),
+    T('Осадная башня',90,500,  0,  0, 22, 0.10, 18, 'square'),
+    T('Конный рыцарь',85,260, 26, 30, 56, 0.80, 14, 'square'),
+  ]},
+  { name:'Эпоха открытий', color:'#c98a4a', units:[
+    T('Авантюрист',  22,  75, 10, 26, 48, 0.60, 9,  'circle'),
+    T('Конкистадор', 58, 210, 22, 36, 36, 0.85, 12, 'square'),
+    T('Мушкетёр',    50, 105, 25,145, 38, 1.20, 8,  'tri'),
+    T('Канонир',     75, 135, 36,165, 28, 1.60, 10, 'hex'),
+    T('Кирасир',    100, 320, 34, 34, 58, 0.90, 14, 'square'),
+    T('Пикинёр',     40, 130, 18, 44, 38, 0.85, 10, 'hex'),
+    T('Пушка',      110, 160, 55,190, 18, 2.00, 12, 'hex'),
+  ]},
+  { name:'Промреволюция', color:'#b08060', units:[
+    T('Пехотинец',   55, 170, 18,120, 44, 0.60, 9,  'circle'),
+    T('Гренадёр',    90, 270, 29, 42, 34, 0.80, 12, 'square'),
+    T('Стрелок',     78, 125, 31,155, 38, 0.90, 8,  'tri'),
+    T('Артиллерист',115, 155, 62,205, 22, 2.00, 11, 'hex'),
+    T('Кавалерист', 105, 300, 34, 32, 62, 0.80, 13, 'square'),
+    T('Пулемётчик', 140, 190, 26,140, 30, 0.35, 10, 'circle'),
+  ]},
+  { name:'20 век', color:'#8a9a6a', units:[
+    T('Пехотинец',  115, 210, 39,125, 44, 0.55, 9,  'circle'),
+    T('Пулемётчик', 150, 260, 33,150, 30, 0.30, 10, 'circle'),
+    T('Снайпер',    135, 115, 82,265, 36, 1.80, 7,  'tri'),
+    T('Танк',       175, 620, 56, 72, 36, 1.20, 14, 'square'),
+    T('Тяжёлый танк',320,1100,88, 76, 26, 1.50, 16, 'square'),
+    T('БТР',        200, 480, 44, 90, 50, 0.90, 12, 'hex'),
+    T('Миномётчик', 160, 175, 70,190, 22, 1.80, 10, 'hex'),
+    T('Зенитка',    220, 320, 40,175, 30, 0.60, 11, 'hex'),
+  ]},
+  { name:'Современность', color:'#6aa8b8', units:[
+    T('Боец',       185, 360, 56,155, 48, 0.50, 9,  'circle'),
+    T('Спецназ',    245, 460, 92,175, 50, 0.70, 10, 'square'),
+    T('Дрон',       290, 210,135,285, 62, 1.40, 8,  'tri'),
+    T('БМП',        320, 780, 78,120, 44, 0.90, 14, 'hex'),
+    T('Танк',       420,1300,120,95, 34, 1.30, 16, 'square'),
+    T('РСЗО',       520, 620,180,320, 24, 2.30, 14, 'hex'),
+    T('ПВО',        480, 560,110,260, 30, 1.10, 13, 'hex'),
+    T('Робот',      700,1500,150,140, 40, 1.00, 16, 'square'),
+  ]},
+];
+
+const SHIPS = [
+  { name:'Триера',   cost:70,  hp:260, speed:36, guns:1, dmg:22, range:130, gunCd:1.5, r:15, era:0 },
+  { name:'Когг',     cost:110, hp:420, speed:32, guns:2, dmg:28, range:145, gunCd:1.6, r:17, era:1 },
+  { name:'Галеон',   cost:190, hp:700, speed:30, guns:3, dmg:38, range:175, gunCd:1.7, r:20, era:2 },
+  { name:'Линейный', cost:290, hp:1100,speed:28, guns:5, dmg:52, range:205, gunCd:1.9, r:22, era:3 },
+  { name:'Линкор',   cost:430, hp:1800,speed:30, guns:7, dmg:78, range:240, gunCd:2.1, r:24, era:4 },
+  { name:'Эсминец',  cost:600, hp:2400,speed:34, guns:9, dmg:98, range:275, gunCd:1.7, r:24, era:5 },
+];
+
+const BIOMES = [
+  { id:'pole',    name:'Поляна',   ground:'#16241a', grid:'rgba(150,220,150,.05)' },
+  { id:'forest',  name:'Лес',      ground:'#0e1c14', grid:'rgba(120,200,140,.05)' },
+  { id:'desert',  name:'Пустыня',  ground:'#241d10', grid:'rgba(230,190,110,.05)' },
+  { id:'winter',  name:'Зима',     ground:'#141c26', grid:'rgba(200,225,255,.06)' },
+  { id:'savanna', name:'Саванна',  ground:'#221f10', grid:'rgba(220,200,120,.05)' },
+  { id:'jungle',  name:'Джунгли',  ground:'#0c1e18', grid:'rgba(110,220,170,.05)' },
+];
+const WATERS = [ {id:'river',name:'Река'}, {id:'lake',name:'Озеро'}, {id:'sea',name:'Море'} ];
+const FORT_TYPES = [
+  { id:'wood',    name:'Деревянная', hp:400,  range:120, dmg:14, cd:1.2, r:20, color:'#b78a4e', burnable:true  },
+  { id:'stone',   name:'Каменная',   hp:700,  range:135, dmg:20, cd:1.1, r:22, color:'#9aa5b4', burnable:false },
+  { id:'great',   name:'Крепкая',    hp:1200, range:160, dmg:32, cd:0.95,r:26, color:'#c8d2de', burnable:false },
+  { id:'coastal', name:'Приморская', hp:900,  range:185, dmg:26, cd:1.0, r:24, color:'#8fb6d8', burnable:false },
+  { id:'citadel', name:'Цитадель',   hp:1600, range:200, dmg:44, cd:0.85,r:28, color:'#e0c98a', burnable:false },
+];
+
+/* ================= КОНСТАНТЫ ================= */
+const BASE_HP    = 1000;
+const PLAYER_INC = 13;
+const ENEMY_INC  = 11;
+const CAP        = 60;
+const SHIP_CAP   = 12;
+const AGGRO      = 190;
+const START_GOLD = 80;
+const DOCK_RANGE = 70;
+const SEL_RADIUS = 95;
+const LONG_PRESS = 0.28;
+const SAFE_H     = 74;
+const HEAL_RATE  = 22;   // HP/сек в безопасной зоне
+
+/* ================= СОСТОЯНИЕ ================= */
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d');
+const bar = document.getElementById('bar');
+const eraBar = document.getElementById('eras');
+const classBar = document.getElementById('classes');
+const unitBar = document.getElementById('units');
+const hudGp = document.getElementById('gp');
+const hudGe = document.getElementById('ge');
+const hintEl = document.getElementById('hint');
+const sbBtn = document.getElementById('sbBtn');
+const ffBtn = document.getElementById('ffBtn');
+const pathBtn = document.getElementById('pathBtn');
+const retP = document.getElementById('retP');
+const retE = document.getElementById('retE');
+const setupBtn = document.getElementById('setupBtn');
+const overEl = document.getElementById('over');
+const setupEl = document.getElementById('setup');
+const statsEl = document.getElementById('stats');
+const ovt = document.getElementById('ovt');
+const ordersEl = document.getElementById('orders');
+const selInfoEl = document.getElementById('selInfo');
+const timeBar = document.getElementById('timeBar');
+const bbP = document.getElementById('bbP');
+const bbE = document.getElementById('bbE');
+const toastEl = document.getElementById('toast');
+
+let W = 0, H = 0, DPR = 1;
+const field = { top:0, bottom:0, mid:0 };
+
+const playerBase = { x:0, y:0, r:26, hp:BASE_HP, max:BASE_HP };
+const enemyBase  = { x:0, y:0, r:26, hp:BASE_HP, max:BASE_HP };
+
+const units  = [];
+const ships  = [];
+const fx     = [];
+const LAKES  = [];
+const FORTS  = [];
+
+const RIVER = { yBase:0, amp:14, freq:0.007, width:44, bridges:[0.30,0.72],
+                y(x){ return this.yBase + Math.sin(x*this.freq)*this.amp; } };
+
+const MAP = { biome:'pole', water:'river', fort:'stone' };
+
+const G = {
+  gold:START_GOLD, egold:START_GOLD, t:0,
+  era:0, sel:0, cat:0, over:null, aiTimer:1.2, deployCd:0,
+  sandbox:false, freePlace:true, pathMode:false,
+  speed:1,
+  retreatP:false, retreatE:false,
+  manualUnit:null,
+  heal:true,             // лечение в безопасной зоне
+  stats:null,
+};
+
+let pointerDown=false, px=0, py=0;
+let pressStart=0, pressX=0, pressY=0, longPressFired=false;
+let dragUnit=null;
+let selectedSquad=[];
+let squadGeneral=null;
+let pathDraw=[], drawingPath=false;
+
+/* ================= UI ================= */
+const eraEls = ERAS.map((E,i) => {
+  const d = document.createElement('div');
+  d.className='era'; d.textContent=E.name; d.style.color=E.color;
+  d.addEventListener('pointerdown', e => {
+    e.preventDefault(); G.era=i; G.sel=0; buildUnitButtons(); syncUI();
+  });
+  eraBar.appendChild(d); return d;
+});
+const catEls = ['ВОИНЫ','КОРАБЛИ'].map((n,i) => {
+  const d = document.createElement('div');
+  d.className='era'; d.textContent=n;
+  d.addEventListener('pointerdown', e => {
+    e.preventDefault(); G.cat=i; G.sel=0; buildUnitButtons(); syncUI();
+  });
+  classBar.appendChild(d); return d;
+});
+
+let unitBtnEls = [];
+function buildUnitButtons(){
+  unitBar.innerHTML=''; unitBtnEls=[];
+  if (G.cat===0){
+    ERAS[G.era].units.forEach((u,i) => {
+      const d = document.createElement('div');
+      d.className='btn';
+      d.innerHTML = `<span class="n">${u.name}</span><span class="c">${u.cost}◆ ${u.hp}hp</span>`;
+      d.addEventListener('pointerdown', e => { e.preventDefault(); G.sel=i; syncUI(); });
+      unitBar.appendChild(d); unitBtnEls.push(d);
+    });
+    if (G.sel >= ERAS[G.era].units.length) G.sel=0;
+  } else {
+    SHIPS.forEach((s,i) => {
+      const d = document.createElement('div');
+      d.className='btn';
+      d.innerHTML = `<span class="n">${s.name}</span><span class="c">${s.cost}◆ ${s.guns}🔫</span>`;
+      d.addEventListener('pointerdown', e => { e.preventDefault(); G.sel=i; syncUI(); });
+      unitBar.appendChild(d); unitBtnEls.push(d);
+    });
+    if (G.sel >= SHIPS.length) G.sel=0;
+  }
+}
+
+function currentCard(){ return G.cat===0 ? ERAS[G.era].units[G.sel] : SHIPS[G.sel]; }
+
+function syncUI(){
+  eraEls.forEach((e,i) => e.classList.toggle('sel', i===G.era));
+  catEls.forEach((e,i) => e.classList.toggle('sel', i===G.cat));
+  unitBtnEls.forEach((el,i) => {
+    el.classList.toggle('sel', i===G.sel);
+    const card = G.cat===0 ? ERAS[G.era].units[i] : SHIPS[i];
+    if (card) el.classList.toggle('off', !G.sandbox && G.gold < card.cost);
+  });
+  sbBtn.classList.toggle('on', G.sandbox);
+  sbBtn.textContent = 'ПЕСОЧНИЦА: ' + (G.sandbox?'ВКЛ':'ВЫКЛ');
+  ffBtn.classList.toggle('on', G.freePlace);
+  ffBtn.textContent = 'СВОБОДНАЯ СТАВКА: ' + (G.freePlace?'ВКЛ':'ВЫКЛ');
+  pathBtn.classList.toggle('on', G.pathMode);
+  pathBtn.textContent = 'ТРАЕКТОРИЯ: ' + (G.pathMode?'ВКЛ':'ВЫКЛ');
+  retP.classList.toggle('on', G.retreatP);
+  retP.textContent = (G.retreatP ? 'ОТСТУПЛЕНИЕ… (СИНИЕ)' : 'ОТСТУПИТЬ (СИНИЕ)');
+  retE.classList.toggle('on', G.retreatE);
+  retE.textContent = (G.retreatE ? 'ОТСТУПЛЕНИЕ… (КРАСНЫЕ)' : 'ОТСТУПИТЬ (КРАСНЫЕ)');
+}
+
+sbBtn.addEventListener('pointerdown', e => {
+  e.preventDefault(); G.sandbox = !G.sandbox;
+  hintEl.textContent = G.sandbox
+    ? 'Песочница: тап — юнит/корабль куда угодно, золото ∞'
+    : 'Тап — поставить. Долгий тап по юниту — выделить отряд.';
+  syncUI();
+});
+ffBtn.addEventListener('pointerdown', e => {
+  e.preventDefault(); G.freePlace = !G.freePlace; syncUI();
+});
+pathBtn.addEventListener('pointerdown', e => {
+  e.preventDefault(); G.pathMode = !G.pathMode; syncUI();
+});
+retP.addEventListener('pointerdown', e => {
+  e.preventDefault(); G.retreatP = !G.retreatP;
+  if (G.retreatP) G.retreatE = false;
+  toast(G.retreatP ? 'Все синие отступают' : 'Синие вернулись в бой');
+  syncUI();
+});
+retE.addEventListener('pointerdown', e => {
+  e.preventDefault(); G.retreatE = !G.retreatE;
+  if (G.retreatE) G.retreatP = false;
+  toast(G.retreatE ? 'Все красные отступают' : 'Красные вернулись в бой');
+  syncUI();
+});
+setupBtn.addEventListener('pointerdown', e => { e.preventDefault(); setupEl.classList.add('on'); });
+document.getElementById('rst').addEventListener('click', resetGame);
+document.getElementById('startBtn').addEventListener('click', () => {
+  setupEl.classList.remove('on'); resetGame();
+});
+document.getElementById('closeStats').addEventListener('click', () => statsEl.classList.remove('on'));
+document.getElementById('againBtn').addEventListener('click', () => { statsEl.classList.remove('on'); resetGame(); });
+document.getElementById('copyStats').addEventListener('click', copyStatsToClipboard);
+
+timeBar.addEventListener('pointerdown', e => {
+  const t = e.target.closest('.tm'); if (!t) return;
+  e.preventDefault();
+  G.speed = parseFloat(t.dataset.sp);
+  [...timeBar.children].forEach(c => c.classList.toggle('sel', c===t));
+});
+
+/* тост */
+let toastTimer = 0;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('on');
+  toastTimer = 2.2;
+}
+
+/* настройки карты */
+const biomeOpts = document.getElementById('biomeOpts');
+const waterOpts = document.getElementById('waterOpts');
+const fortOpts  = document.getElementById('fortOpts');
+BIOMES.forEach(b => {
+  const d=document.createElement('div');
+  d.className='opt'+(MAP.biome===b.id?' sel':''); d.textContent=b.name;
+  d.addEventListener('pointerdown', () => {
+    MAP.biome=b.id; [...biomeOpts.children].forEach(c=>c.classList.toggle('sel',c===d)); layout();
+  });
+  biomeOpts.appendChild(d);
+});
+WATERS.forEach(w => {
+  const d=document.createElement('div');
+  d.className='opt'+(MAP.water===w.id?' sel':''); d.textContent=w.name;
+  d.addEventListener('pointerdown', () => {
+    MAP.water=w.id; [...waterOpts.children].forEach(c=>c.classList.toggle('sel',c===d)); layout();
+  });
+  waterOpts.appendChild(d);
+});
+FORT_TYPES.forEach(f => {
+  const d=document.createElement('div');
+  d.className='opt'+(MAP.fort===f.id?' sel':''); d.textContent=f.name;
+  d.addEventListener('pointerdown', () => {
+    MAP.fort=f.id; [...fortOpts.children].forEach(c=>c.classList.toggle('sel',c===d)); layout();
+  });
+  fortOpts.appendChild(d);
+});
+const swFF=document.getElementById('swFF'), swPath=document.getElementById('swPath'),
+      swHeal=document.getElementById('swHeal');
+swFF.classList.toggle('on', G.freePlace);
+swPath.classList.toggle('on', G.pathMode);
+swHeal.classList.toggle('on', G.heal);
+swFF.addEventListener('pointerdown', () => { G.freePlace=!G.freePlace; swFF.classList.toggle('on',G.freePlace); syncUI(); });
+swPath.addEventListener('pointerdown', () => { G.pathMode=!G.pathMode; swPath.classList.toggle('on',G.pathMode); syncUI(); });
+swHeal.addEventListener('pointerdown', () => { G.heal=!G.heal; swHeal.classList.toggle('on',G.heal); });
+
+/* ================= РАЗМЕРЫ ================= */
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cvs.width = Math.round(W*DPR); cvs.height = Math.round(H*DPR);
+  cvs.style.width = W+'px'; cvs.style.height = H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  layout();
+}
+function layout(){
+  const barH = bar.offsetHeight || 150;
+  field.top = SAFE_H;
+  field.bottom = Math.max(260, H - barH - SAFE_H);
+  field.mid = (field.top + field.bottom)/2;
+
+  playerBase.x = W/2; playerBase.y = field.bottom - 54; playerBase.r = 26;
+  enemyBase.x  = W/2; enemyBase.y  = field.top + 54;    enemyBase.r  = 26;
+
+  RIVER.yBase = field.mid + 4;
+
+  LAKES.length = 0;
+  if (MAP.water==='lake'){
+    LAKES.push({ x:W*0.22, y:field.mid-90, r:52 });
+    LAKES.push({ x:W*0.78, y:field.mid+90, r:52 });
+  } else if (MAP.water==='sea'){
+    LAKES.push({ x:W*0.18, y:field.bottom-90, r:78 });
+  }
+
+  FORTS.length = 0;
+  const ft = FORT_TYPES.find(f=>f.id===MAP.fort)||FORT_TYPES[1];
+  let a1,a2;
+  if (MAP.water==='river'){ a1={x:W*0.5-50,y:field.mid-95}; a2={x:W*0.5+50,y:field.mid+95}; }
+  else if (MAP.water==='lake'){ a1={x:W*0.24,y:field.mid-145}; a2={x:W*0.76,y:field.mid+145}; }
+  else { a1={x:W*0.30,y:field.mid-110}; a2={x:W*0.70,y:field.mid+110}; }
+  FORTS.push(makeFort(a1.x,a1.y,ft), makeFort(a2.x,a2.y,ft));
+}
+function makeFort(x,y,ft){ return {x,y,r:ft.r,type:ft,team:-1,hp:ft.hp,maxHp:ft.hp,timer:0,burning:0}; }
+
+/* ================= БЕЗОПАСНЫЕ ЗОНЫ ================= */
+function inSafeZone(x, y, team){
+  if (team === 0) return y > field.bottom - SAFE_H;
+  return y < field.top + SAFE_H;
+}
+
+/* ================= ВОДА ================= */
+function inRiver(x,y){
+  if (MAP.water!=='river') return false;
+  for (const bf of RIVER.bridges) if (Math.abs(x-W*bf)<44) return false;
+  return Math.abs(y-RIVER.y(x)) < RIVER.width/2;
+}
+function inLake(x,y){
+  if (MAP.water==='river') return false;
+  for (const l of LAKES){
+    const dx=x-l.x, dy=y-l.y;
+    if (dx*dx+dy*dy < l.r*l.r) return true;
+  }
+  return false;
+}
+function isWater(x,y){ return inRiver(x,y)||inLake(x,y); }
+
+/* ================= ГЕНЕРАЛЫ ================= */
+function makeGeneral(team,x,y,name){
+  return { team, x, y, r:14, name:name||'Генерал', aura:120, dead:false,
+           order:'attack', holdX:x, holdY:y,
+           patrolA:{x,y}, patrolB:{x,y}, patrolT:0, patrolDir:1 };
+}
+
+/* ================= СОЗДАНИЕ ================= */
+function spawn(team,T0,x,y){
+  let sx=x, sy=y, tries=0;
+  while (isWater(sx,sy) && tries++<30){
+    sx = x + (Math.random()-0.5)*50;
+    sy = y + (Math.random()-0.5)*50;
+  }
+  units.push({
+    team, T:T0, x:sx, y:sy, hp:T0.hp, maxHp:T0.hp, cd:0,
+    onShip:null, general:null, order:'attack',
+    holdX:sx, holdY:sy, path:null, pathIndex:0,
+    patrolA:{x:sx,y:sy}, patrolB:{x:sx,y:sy}, patrolT:0, patrolDir:1,
+    manual:false, retreating:false, squadRetreat:false,
+    kills:0, dmgDone:0, spawnedAt:G.t, alive:true,
+    healing:false
+  });
+}
+function spawnShip(team,S0,x,y){
+  ships.push({team,S:S0,x,y,hp:S0.hp,maxHp:S0.hp,gunTimer:0,cargo:[],maxCargo:4});
+}
+function aiSpawn(team, pool){
+  const U = pool || ERAS[Math.min(ERAS.length-1, Math.floor(G.t/55))].units;
+  const U0 = U[Math.floor(Math.random()*U.length)];
+  const base = team===0 ? playerBase : enemyBase;
+  const dir  = team===0 ? -1 : 1;
+  const spread = Math.min(140, 30 + units.length*1.4);
+  const x = Math.min(W-16, Math.max(16, base.x + (Math.random()*2-1)*spread));
+  const y = base.y + dir * (base.r + 14 + Math.random()*24);
+  spawn(team, U0, x, y);
+}
+function aiSpawnShip(team){
+  const S0 = SHIPS[Math.min(SHIPS.length-1, Math.floor(G.t/70))];
+  for (let tries=0; tries<50; tries++){
+    const x = 40 + Math.random()*(W-80);
+    const y = field.mid - 140 + Math.random()*140;
+    if (isWater(x,y) && (isWater(x,y-20)||isWater(x,y+20)||isWater(x-20,y)||isWater(x+20,y))){
+      spawnShip(team,S0,x,y); return;
+    }
+  }
+}
+
+/* ================= БОЙ ================= */
+function nearestEnemy(u){
+  let best=null, bd=Infinity;
+  for (const o of units){
+    if (o.team===u.team || o.hp<=0 || o.onShip) continue;
+    if (inSafeZone(o.x,o.y,o.team)) continue;
+    const d = Math.hypot(o.x-u.x, o.y-u.y);
+    if (d<bd){ bd=d; best=o; }
+  }
+  return best ? {u:best,d:bd} : null;
+}
+function addBurst(x,y,r){ fx.push({type:'burst',x,y,r:r||8,life:.25,max:.25}); }
+function addLine(x1,y1,x2,y2){ fx.push({type:'line',x1,y1,x2,y2,life:.15,max:.15}); }
+function addMarker(x,y,col){ fx.push({type:'marker',x,y,col:col||'#7fe0ff',life:.9,max:.9}); }
+function addHeal(x,y){ fx.push({type:'heal',x,y,life:.5,max:.5}); }
+
+function damageUnit(target, dmg, attacker){
+  if (target.hp<=0 || target.onShip) return;
+  if (inSafeZone(target.x, target.y, target.team)) return;
+  target.hp -= dmg;
+  if (attacker){ attacker.dmgDone += dmg; if (target.hp<=0) attacker.kills++; }
+}
+function moveWithObstacles(u,dx,dy){
+  const nx = u.x+dx, ny = u.y+dy;
+  if (!isWater(nx,ny)){ u.x=nx; u.y=ny; return; }
+  if (!isWater(nx,u.y)){ u.x=nx; return; }
+  if (!isWater(u.x,ny)){ u.y=ny; return; }
+  const s = Math.hypot(dx,dy)||1;
+  const px2 = -dy/s*2, py2 = dx/s*2;
+  if (!isWater(u.x+px2, u.y+py2)){ u.x+=px2; u.y+=py2; }
+}
+
+/* ================= ФОРТЫ / КОРАБЛИ ================= */
+function updateFort(f,dt){
+  if (f.hp<=0) return;
+  if (f.burning>0){
+    f.burning-=dt; f.hp-=18*dt;
+    if (Math.random()<dt*8){
+      fx.push({type:'fire',x:f.x+(Math.random()-0.5)*f.r*1.5,y:f.y+(Math.random()-0.5)*f.r*1.5,life:0.6,max:0.6});
+    }
+    if (f.hp<=0){ addBurst(f.x,f.y,f.r+10); return; }
+  }
+  let p=0,e=0;
+  for (const u of units){
+    if (u.onShip) continue;
+    if (Math.hypot(u.x-f.x,u.y-f.y)<f.r+55){ u.team===0?p++:e++; }
+  }
+  const prev = f.team;
+  if (p>e) f.team=0; else if (e>p) f.team=1;
+  if (f.type.burnable && prev===1 && f.team===0) f.burning=6;
+  f.timer -= dt;
+  if (f.team>=0 && f.timer<=0 && f.hp>0){
+    let best=null, bd=f.type.range;
+    for (const u of units){
+      if (u.team===f.team || u.onShip) continue;
+      if (inSafeZone(u.x,u.y,u.team)) continue;
+      const d = Math.hypot(u.x-f.x,u.y-f.y);
+      if (d<bd){ bd=d; best=u; }
+    }
+    if (best){
+      damageUnit(best, f.type.dmg, null);
+      f.timer = f.type.cd;
+      addLine(f.x,f.y,best.x,best.y);
+    }
+  }
+}
+function updateShip(s,dt){
+  if (s.hp<=0) return;
+  const eb = s.team===0 ? enemyBase : playerBase;
+  let best=null, bd=s.S.range;
+  for (const u of units){
+    if (u.team===s.team || u.onShip) continue;
+    if (inSafeZone(u.x,u.y,u.team)) continue;
+    const d = Math.hypot(u.x-s.x, u.y-s.y);
+    if (d<bd){ bd=d; best=u; }
+  }
+  const bdBase = Math.hypot(eb.x-s.x, eb.y-s.y);
+  s.gunTimer -= dt;
+  if (s.gunTimer<=0){
+    if (best && bd<bdBase){
+      damageUnit(best, s.S.dmg, null);
+      addLine(s.x,s.y,best.x,best.y);
+      s.gunTimer = s.S.gunCd;
+    } else if (bdBase < s.S.range + eb.r){
+      if (!(G.sandbox && eb===enemyBase)) eb.hp -= s.S.dmg*0.6;
+      addBurst(eb.x, eb.y + (s.team===0?eb.r*0.5:-eb.r*0.5), 7);
+      s.gunTimer = s.S.gunCd;
+    }
+  }
+  s.x += Math.cos(G.t*0.3 + s.y*0.01)*s.S.speed*dt*0.25;
+  s.y += Math.sin(G.t*0.27 + s.x*0.01)*s.S.speed*dt*0.25;
+  if (!isWater(s.x,s.y)){
+    if (isWater(s.x-12,s.y)) s.x-=12;
+    else if (isWater(s.x+12,s.y)) s.x+=12;
+    else if (isWater(s.x,s.y-12)) s.y-=12;
+    else if (isWater(s.x,s.y+12)) s.y+=12;
+  }
+  s.x = Math.min(W-20, Math.max(20, s.x));
+  s.y = Math.min(field.bottom-20, Math.max(20, s.y));
+}
+function tryBoardUnit(u,s){
+  if (s.cargo.length>=s.maxCargo) return false;
+  if (u.team!==s.team || u.onShip) return false;
+  if (Math.hypot(u.x-s.x, u.y-s.y) > DOCK_RANGE) return false;
+  u.onShip=s; s.cargo.push(u); addBurst(u.x,u.y,12); return true;
+}
+function tryUnboard(s){
+  if (s.cargo.length===0) return;
+  const u = s.cargo.pop(); u.onShip=null;
+  let bestX=s.x, bestY=s.y, bestD=Infinity;
+  for (let a=0; a<16; a++){
+    const ang = a*Math.PI/8;
+    for (let r=s.S.r+8; r<s.S.r+70; r+=6){
+      const x = s.x+Math.cos(ang)*r, y = s.y+Math.sin(ang)*r;
+      if (!isWater(x,y) && y>0 && y<field.bottom){
+        const d = Math.hypot(x-s.x,y-s.y);
+        if (d<bestD){ bestD=d; bestX=x; bestY=y; }
+      }
+    }
+  }
+  u.x=bestX; u.y=bestY; addBurst(u.x,u.y,12);
+}
+
+/* ================= ШАГ ================= */
+function step(dtRaw){
+  const dt = dtRaw * G.speed;
+
+  for (let i=fx.length-1; i>=0; i--){
+    fx[i].life -= dt;
+    if (fx[i].life<=0) fx.splice(i,1);
+  }
+  if (G.over) return;
+
+  G.t += dt;
+  if (!G.sandbox){
+    G.gold  += PLAYER_INC*dt;
+    G.egold += (ENEMY_INC + G.t*0.22)*dt;
+  } else G.gold = Infinity;
+
+  if (G.retreatP && !units.some(u => u.team===0 && !u.onShip && !inSafeZone(u.x,u.y,0))) G.retreatP = false;
+  if (G.retreatE && !units.some(u => u.team===1 && !u.onShip && !inSafeZone(u.x,u.y,1))) G.retreatE = false;
+
+  /* ИИ */
+  if (!G.sandbox){
+    G.aiTimer -= dt;
+    if (G.aiTimer<=0){
+      const eraIdx = Math.min(ERAS.length-1, Math.floor(G.t/55));
+      const pool = ERAS[eraIdx].units;
+      const eShips = ships.reduce((n,s)=>n+(s.team===1?1:0), 0);
+      const cnt = units.reduce((n,u)=>n+(u.team===1 && !u.onShip ?1:0), 0);
+      if (Math.random()<0.22 && eShips<SHIP_CAP && G.egold>=SHIPS[eraIdx].cost){
+        G.egold -= SHIPS[eraIdx].cost; aiSpawnShip(1);
+      } else {
+        const U0 = pool[Math.floor(Math.random()*pool.length)];
+        if (G.egold>=U0.cost && cnt<CAP){ G.egold -= U0.cost; aiSpawn(1, pool); }
+      }
+      G.aiTimer = Math.max(0.4, 1.8 - G.t*0.016)*(0.65 + Math.random()*0.7);
+    }
+  }
+
+  for (const f of FORTS) updateFort(f, dt);
+  for (const s of ships) updateShip(s, dt);
+
+  /* Юниты */
+  for (const u of units){
+    if (u.hp<=0) continue;
+
+    if (u.onShip){ u.x=u.onShip.x; u.y=u.onShip.y-2; continue; }
+
+    /* ЛЕЧЕНИЕ В БЕЗОПАСНОЙ ЗОНЕ */
+    u.healing = false;
+    if (G.heal && inSafeZone(u.x, u.y, u.team) && u.hp < u.maxHp){
+      u.hp = Math.min(u.maxHp, u.hp + HEAL_RATE * dt);
+      u.healing = true;
+      if (Math.random() < dt*4) addHeal(u.x + (Math.random()-0.5)*12, u.y - u.T.r - 4);
+      // юнит в безопасной зоне не двигается и не атакует
+      continue;
+    }
+
+    /* РУЧНОЕ УПРАВЛЕНИЕ */
+    if (G.manualUnit === u){
+      const dx = px - u.x, dy = py - u.y;
+      const d = Math.hypot(dx,dy);
+      if (d > 8) moveWithObstacles(u, dx/d*u.T.speed*dt, dy/d*u.T.speed*dt);
+      u.cd -= dt;
+      const ne = nearestEnemy(u);
+      if (ne && ne.d < u.T.range + 8 && u.cd<=0){
+        u.cd = u.T.cd;
+        damageUnit(ne.u, u.T.dmg, u);
+        if (u.T.range < 50) addBurst(ne.u.x, ne.u.y, ne.u.T.r);
+        else addLine(u.x, u.y, ne.u.x, ne.u.y);
+      }
+      continue;
+    }
+
+    /* ОТСТУПЛЕНИЕ (весь отряд или вся команда) */
+    if (u.retreating || u.squadRetreat ||
+        (u.team===0 && G.retreatP) || (u.team===1 && G.retreatE)){
+      u.retreating = true;
+      const szY = u.team===0 ? field.bottom - SAFE_H/2 : field.top + SAFE_H/2;
+      const dx = u.x - W/2, dy = szY - u.y;
+      const d = Math.max(1, Math.hypot(dx,dy));
+      if (!inSafeZone(u.x, u.y, u.team)){
+        moveWithObstacles(u, (dx/d)*0.35*u.T.speed*dt, (dy/d)*u.T.speed*dt);
+      }
+      continue;
+    }
+
+    const UT = u.T;
+    u.cd -= dt;
+
+    let tx=null, ty=null, dist=0, targetIsBase=false;
+
+    if (u.order==='hold'){
+      const ne = nearestEnemy(u);
+      if (ne && ne.d < Math.min(UT.range+30, AGGRO)){
+        tx=ne.u.x; ty=ne.u.y; dist=ne.d - ne.u.T.r - UT.r;
+      } else {
+        const dx=u.holdX-u.x, dy=u.holdY-u.y, d=Math.hypot(dx,dy);
+        if (d>8) moveWithObstacles(u, dx/d*UT.speed*dt, dy/d*UT.speed*dt);
+        continue;
+      }
+    } else if (u.order==='patrol'){
+      u.patrolT += dt*0.5*(u.patrolDir||1);
+      if (u.patrolT>1){ u.patrolT=1; u.patrolDir=-1; }
+      if (u.patrolT<0){ u.patrolT=0; u.patrolDir=1; }
+      const gx = u.patrolA.x + (u.patrolB.x-u.patrolA.x)*u.patrolT;
+      const gy = u.patrolA.y + (u.patrolB.y-u.patrolA.y)*u.patrolT;
+      const ne = nearestEnemy(u);
+      if (ne && ne.d < Math.min(UT.range+20, AGGRO*0.8)){
+        tx=ne.u.x; ty=ne.u.y; dist=ne.d - ne.u.T.r - UT.r;
+      } else {
+        const d = Math.max(1, Math.hypot(gx-u.x,gy-u.y));
+        if (d>6) moveWithObstacles(u, (gx-u.x)/d*UT.speed*dt, (gy-u.y)/d*UT.speed*dt);
+        continue;
+      }
+    } else if (u.order==='path' && u.path && u.path.length){
+      const p = u.path[Math.min(u.pathIndex, u.path.length-1)];
+      const d = Math.hypot(p.x-u.x, p.y-u.y);
+      const ne = nearestEnemy(u);
+      if (ne && ne.d < Math.min(UT.range, AGGRO)){
+        tx=ne.u.x; ty=ne.u.y; dist=ne.d - ne.u.T.r - UT.r;
+      } else {
+        if (d<12){ u.pathIndex++; if (u.pathIndex>=u.path.length){ u.path=null; u.pathIndex=0; } }
+        else { moveWithObstacles(u, (p.x-u.x)/d*UT.speed*dt, (p.y-u.y)/d*UT.speed*dt); continue; }
+      }
+    } else if (u.order==='followGen' && u.general && !u.general.dead){
+      const g = u.general;
+      const gd = Math.hypot(g.x-u.x, g.y-u.y);
+      const ne = nearestEnemy(u);
+      if (ne && ne.d < Math.min(UT.range, AGGRO)){
+        tx=ne.u.x; ty=ne.u.y; dist=ne.d - ne.u.T.r - UT.r;
+      } else if (gd>90){
+        moveWithObstacles(u, (g.x-u.x)/gd*UT.speed*dt, (g.y-u.y)/gd*UT.speed*dt);
+        continue;
+      }
+    }
+
+    if (tx===null){
+      const eb = u.team===0 ? enemyBase : playerBase;
+      const bdRaw = Math.hypot(eb.x-u.x, eb.y-u.y);
+      const bd = Math.max(0, bdRaw - eb.r - UT.r);
+      const ne = nearestEnemy(u);
+      if (ne && ne.d < AGGRO && (ne.d - ne.u.T.r - UT.r) < bd){
+        tx=ne.u.x; ty=ne.u.y; dist=ne.d - ne.u.T.r - UT.r;
+      } else {
+        tx=eb.x; ty=eb.y; dist=bd; targetIsBase=true;
+      }
+    }
+
+    if (tx!==null && dist > UT.range){
+      let goX=tx, goY=ty;
+      if (MAP.water==='river'){
+        const uSide = u.y > RIVER.y(u.x) ? 1 : -1;
+        const tSide = ty > RIVER.y(tx) ? 1 : -1;
+        if (uSide !== tSide){
+          let bf=RIVER.bridges[0], nd=Infinity;
+          for (const b of RIVER.bridges){
+            const d = Math.abs(u.x - W*b);
+            if (d<nd){ nd=d; bf=b; }
+          }
+          goX = W*bf; goY = u.y;
+        }
+      }
+      const d = Math.max(1, Math.hypot(goX-u.x, goY-u.y));
+      moveWithObstacles(u, (goX-u.x)/d*UT.speed*dt, (goY-u.y)/d*UT.speed*dt);
+    } else if (tx!==null && u.cd<=0){
+      u.cd = UT.cd;
+      if (targetIsBase){
+        const eb = u.team===0 ? enemyBase : playerBase;
+        if (!(G.sandbox && eb===enemyBase)) eb.hp -= UT.dmg;
+        addBurst(tx, ty + (u.team===0?eb.r*0.6:-eb.r*0.6), 7);
+        if (UT.range<50) addLine(u.x,u.y,tx,ty);
+      } else {
+        const ne = nearestEnemy(u);
+        if (ne){
+          damageUnit(ne.u, UT.dmg, u);
+          if (UT.range<50) addBurst(ne.u.x,ne.u.y,ne.u.T.r);
+          else addLine(u.x,u.y,ne.u.x,ne.u.y);
+        }
+      }
+    }
+  }
+
+  for (let i=0; i<units.length; i++){
+    const a = units[i];
+    if (a.hp<=0 || a.onShip || inSafeZone(a.x,a.y,a.team)) continue;
+    for (let j=i+1; j<units.length; j++){
+      const b = units[j];
+      if (b.hp<=0 || b.onShip || inSafeZone(b.x,b.y,b.team)) continue;
+      const dx=b.x-a.x, dy=b.y-a.y;
+      const min = a.T.r + b.T.r;
+      let d = Math.hypot(dx,dy);
+      if (d<min){
+        if (d<0.001){ a.x-=0.5; b.x+=0.5; continue; }
+        const push = (min-d)*0.5, nx=dx/d, ny=dy/d;
+        a.x-=nx*push; a.y-=ny*push;
+        b.x+=nx*push; b.y+=ny*push;
+      }
+    }
+  }
+
+  for (const u of units){
+    if (u.onShip) continue;
+    const r = u.T.r+4;
+    if (u.x<r) u.x=r;
+    if (u.x>W-r) u.x=W-r;
+    if (u.y<r) u.y=r;
+    if (u.y>field.bottom - r) u.y = field.bottom - r;
+  }
+
+  for (let i=units.length-1; i>=0; i--){
+    const u = units[i];
+    if (u.hp<=0){
+      if (u.alive){
+        u.alive=false;
+        G.stats.events.push({ t:G.t, team:u.team, name:u.T.name, hp:0,
+                              kills:u.kills, dmg:u.dmgDone });
+      }
+      const reward = Math.round(u.T.cost*0.3);
+      if (u.team===0) G.egold += reward; else G.gold += reward;
+      addBurst(u.x, u.y, u.T.r+2);
+      if (u.onShip){
+        const idx = u.onShip.cargo.indexOf(u);
+        if (idx>=0) u.onShip.cargo.splice(idx,1);
+      }
+      units.splice(i,1);
+    }
+  }
+
+  for (let i=ships.length-1; i>=0; i--){
+    const s = ships[i];
+    if (s.hp<=0){
+      for (const u of s.cargo){
+        u.alive=false;
+        G.stats.events.push({ t:G.t, team:u.team, name:u.T.name, hp:0,
+                              kills:u.kills, dmg:u.dmgDone });
+        const idx = units.indexOf(u);
+        if (idx>=0) units.splice(idx,1);
+      }
+      addBurst(s.x, s.y, s.S.r+10);
+      ships.splice(i,1);
+    }
+  }
+
+  G.deployCd -= dt;
+  if (pointerDown && G.deployCd<=0 && !dragUnit && !G.pathMode && !G.manualUnit){
+    if (tryDeploy(px, py)) G.deployCd = 0.20;
+  }
+
+  if (!G.sandbox){
+    if (enemyBase.hp<=0){ G.over='win'; endGame(); }
+    else if (playerBase.hp<=0){ G.over='lose'; endGame(); }
+  }
+}
+
+function endGame(){
+  ovt.textContent = G.over==='win' ? 'ПОБЕДА' : 'ПОРАЖЕНИЕ';
+  ovt.style.color = G.over==='win' ? '#6fd0ff' : '#ff7286';
+  overEl.classList.add('on');
+  showStats();
+}
+
+/* ================= ИНДИКАТОР ХОДА БОЯ ================= */
+function updateBattleBar(){
+  let pPower = 0, ePower = 0;
+  for (const u of units){
+    if (u.onShip) continue;
+    const pow = u.hp * (1 + u.T.dmg/50 + u.T.range/200);
+    if (u.team===0) pPower += pow; else ePower += pow;
+  }
+  // базы тоже учитываем
+  pPower += playerBase.hp * 0.35;
+  ePower += enemyBase.hp * 0.35;
+  // крепости
+  for (const f of FORTS){
+    if (f.team===0) pPower += f.hp * 0.25;
+    else if (f.team===1) ePower += f.hp * 0.25;
+  }
+  const total = pPower + ePower;
+  const pPct = total > 0 ? (pPower/total)*100 : 50;
+  bbP.style.width = pPct + '%';
+  bbE.style.width = (100-pPct) + '%';
+  bbP.textContent = pPct > 18 ? 'СИНИЕ ' + Math.round(pPct) + '%' : '';
+  bbE.textContent = (100-pPct) > 18 ? Math.round(100-pPct) + '% КРАСНЫЕ' : '';
+}
+
+/* ================= СТАТИСТИКА ================= */
+function showStats(){
+  const all = [];
+  for (const e of G.stats.events) all.push(e);
+  for (const u of units){
+    all.push({ t:G.t, team:u.team, name:u.T.name, hp:Math.round(u.hp), maxHp:u.maxHp,
+               kills:u.kills, dmg:u.dmgDone, alive:true });
+  }
+  const P = all.filter(e=>e.team===0);
+  const E = all.filter(e=>e.team===1);
+
+  function renderCol(el, sumEl, list, kind){
+    const spawned = list.length;
+    const alive = list.filter(x=>x.alive).length;
+    const kills = list.reduce((n,x)=>n+(x.kills||0), 0);
+    const dmg   = Math.round(list.reduce((n,x)=>n+(x.dmg||0), 0));
+    sumEl.innerHTML =
+      `Создано: <b>${spawned}</b> · Выжило: <b>${alive}</b><br>` +
+      `Убийств: <b>${kills}</b> · Урона: <b>${dmg}</b><br>` +
+      `База: <b>${Math.max(0,Math.round(kind===0?playerBase.hp:enemyBase.hp))} / ${BASE_HP}</b>`;
+
+    let html = '<tr><th>Юнит</th><th>HP</th><th>Убийств</th><th>Урон</th></tr>';
+    list.sort((a,b)=>(b.kills||0)-(a.kills||0) || (b.dmg||0)-(a.dmg||0));
+    for (const x of list){
+      const cls = x.alive ? 'alive' : 'dead';
+      const hp  = x.alive ? `${Math.round(x.hp)}/${x.maxHp||'?'}` : '0';
+      html += `<tr class="${cls}">
+        <td class="n">${x.name}</td>
+        <td>${hp}</td>
+        <td>${x.kills||0}</td>
+        <td>${Math.round(x.dmg||0)}</td></tr>`;
+    }
+    el.innerHTML = html;
+  }
+  renderCol(document.getElementById('tblP'), document.getElementById('sumP'), P, 0);
+  renderCol(document.getElementById('tblE'), document.getElementById('sumE'), E, 1);
+
+  const winner = G.over==='win' ? 'ПОБЕДА СИНИХ' : 'ПОБЕДА КРАСНЫХ';
+  document.getElementById('statsTitle').textContent = 'СТАТИСТИКА БОЯ — ' + winner;
+  statsEl.classList.add('on');
+}
+
+function buildStatsText(){
+  const all = [];
+  for (const e of G.stats.events) all.push(e);
+  for (const u of units){
+    all.push({ team:u.team, name:u.T.name, hp:Math.round(u.hp), maxHp:u.maxHp,
+               kills:u.kills, dmg:u.dmgDone, alive:true });
+  }
+  const P = all.filter(e=>e.team===0);
+  const E = all.filter(e=>e.team===1);
+  const lines = [];
+  lines.push('=== СТАТИСТИКА БОЯ ===');
+  lines.push('Результат: ' + (G.over==='win'?'Победа синих':'Победа красных'));
+  lines.push('Время боя: ' + G.t.toFixed(1) + ' сек');
+  lines.push('Карта: ' + (BIOMES.find(b=>b.id===MAP.biome)||{name:'?'}).name +
+             ' | Вода: ' + (WATERS.find(w=>w.id===MAP.water)||{name:'?'}).name +
+             ' | Крепость: ' + (FORT_TYPES.find(f=>f.id===MAP.fort)||{name:'?'}).name);
+  lines.push('');
+  function dump(name, list){
+    lines.push('--- ' + name + ' ---');
+    const alive = list.filter(x=>x.alive).length;
+    const kills = list.reduce((n,x)=>n+(x.kills||0),0);
+    const dmg = Math.round(list.reduce((n,x)=>n+(x.dmg||0),0));
+    lines.push(`Создано: ${list.length} | Выжило: ${alive} | Убийств: ${kills} | Урона: ${dmg}`);
+    const sorted = [...list].sort((a,b)=>(b.kills||0)-(a.kills||0) || (b.dmg||0)-(a.dmg||0));
+    for (const x of sorted){
+      const status = x.alive ? `${Math.round(x.hp)}/${x.maxHp}` : 'погиб';
+      lines.push(`  ${x.name}: HP ${status}, убийств ${x.kills||0}, урона ${Math.round(x.dmg||0)}`);
+    }
+    lines.push('');
+  }
+  dump('СИНИЕ', P);
+  dump('КРАСНЫЕ', E);
+  return lines.join('\n');
+}
+
+function copyStatsToClipboard(){
+  const text = buildStatsText();
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(
+      () => toast('Статистика скопирована'),
+      () => fallbackCopy(text)
+    );
+  } else fallbackCopy(text);
+}
+function fallbackCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    toast('Статистика скопирована');
+  } catch(e){ toast('Не удалось скопировать'); }
+  document.body.removeChild(ta);
+}
+
+/* ================= РАЗМЕЩЕНИЕ ================= */
+function tryDeploy(x,y){
+  if (G.over) return false;
+  if (y < 4 || y > field.bottom - 4) return false;
+
+  if (G.cat===0){
+    const T0 = currentCard();
+    let team = 0;
+
+    if (G.sandbox){
+      team = y < field.mid ? 1 : 0;
+    } else if (G.freePlace){
+      team = y < field.mid ? 1 : 0;
+      const cnt = units.reduce((n,u)=>n+(u.team===0 && !u.onShip ?1:0), 0);
+      if (team===0){
+        if (cnt>=CAP) return false;
+        if (G.gold < T0.cost) return false;
+        G.gold -= T0.cost;
+      }
+    } else {
+      if (y < field.mid) return false;
+      const cnt = units.reduce((n,u)=>n+(u.team===0 && !u.onShip ?1:0), 0);
+      if (cnt>=CAP) return false;
+      if (G.gold < T0.cost) return false;
+      G.gold -= T0.cost;
+    }
+    spawn(team, T0, x, y);
+    addBurst(x, y, T0.r + 4);
+    return true;
+  } else {
+    const S0 = currentCard();
+    if (!isWater(x,y)) return false;
+    let team = 0;
+    if (G.sandbox || G.freePlace){
+      team = y < field.mid ? 1 : 0;
+      if (!G.sandbox && team===0){
+        if (G.gold < S0.cost) return false;
+        G.gold -= S0.cost;
+      }
+    } else {
+      if (y < field.mid) return false;
+      if (G.gold < S0.cost) return false;
+      G.gold -= S0.cost;
+    }
+    spawnShip(team, S0, x, y);
+    addBurst(x, y, S0.r + 6);
+    return true;
+  }
+}
+
+/* ================= ВВОД ================= */
+function toLocal(e){
+  const r = cvs.getBoundingClientRect();
+  px = e.clientX - r.left; py = e.clientY - r.top;
+}
+function pickUnitAt(x,y,maxD){
+  let best=null, bd=maxD||26;
+  for (const u of units){
+    if (u.onShip) continue;
+    const d = Math.hypot(u.x-x, u.y-y);
+    if (d < u.T.r+12 && d<bd){ bd=d; best=u; }
+  }
+  return best;
+}
+function pickShipAt(x,y){
+  let best=null, bd=40;
+  for (const s of ships){
+    const d = Math.hypot(s.x-x, s.y-y);
+    if (d < s.S.r+16 && d<bd){ bd=d; best=s; }
+  }
+  return best;
+}
+
+function selectSquad(u){
+  selectedSquad=[]; squadGeneral = u.general||null;
+  for (const o of units){
+    if (o.team!==u.team || o.onShip) continue;
+    if (Math.hypot(o.x-u.x, o.y-u.y) <= SEL_RADIUS) selectedSquad.push(o);
+  }
+  updateOrdersPanel();
+}
+function clearSquad(){
+  selectedSquad=[]; squadGeneral=null; pathDraw=[];
+  G.manualUnit=null;
+  ordersEl.classList.remove('on'); selInfoEl.classList.remove('on');
+}
+function updateOrdersPanel(){
+  if (selectedSquad.length===0){ ordersEl.classList.remove('on'); selInfoEl.classList.remove('on'); return; }
+  ordersEl.classList.add('on'); selInfoEl.classList.add('on');
+  const teamName = selectedSquad[0].team===0 ? 'ваш' : 'врага';
+  selInfoEl.innerHTML =
+    `Отряд: <b>${selectedSquad.length}</b> (${teamName})<br>` +
+    (squadGeneral ? `Генерал: <b>${squadGeneral.name}</b><br>` : 'Генерал: нет<br>') +
+    `Приказ: <b>${orderName(selectedSquad[0].order)}</b>` +
+    (G.manualUnit ? `<br><span style="color:#ffe38a">Ручное управление</span>` : '');
+}
+function orderName(o){
+  return { attack:'Атака', hold:'Держать', patrol:'Патруль',
+           followGen:'За генералом', path:'По траектории', manual:'Ручное' }[o]||o;
+}
+function applyOrder(order){
+  if (selectedSquad.length===0) return;
+  if (order==='clearSel'){ clearSquad(); return; }
+
+  if (order==='manual'){
+    G.manualUnit = selectedSquad[0];
+    for (const u of selectedSquad) u.order = 'manual';
+    hintEl.textContent = 'Ручное управление: веди юнита пальцем по экрану.';
+  } else if (order==='attack'){
+    for (const u of selectedSquad){
+      u.order='attack'; u.path=null; u.general=squadGeneral;
+      u.retreating=false; u.squadRetreat=false; u.manual=false;
+    }
+    addMarker(selectedSquad[0].x, selectedSquad[0].y, '#ff7286');
+    G.manualUnit = null;
+    toast('Отряд атакует');
+  } else if (order==='hold'){
+    for (const u of selectedSquad){
+      u.order='hold'; u.holdX=u.x; u.holdY=u.y; u.path=null; u.manual=false;
+      addMarker(u.x,u.y,'#7fe0ff');
+    }
+    G.manualUnit = null;
+    toast('Отряд держит позицию');
+  } else if (order==='patrol'){
+    for (const u of selectedSquad){
+      u.order='patrol'; u.patrolA={x:u.x,y:u.y};
+      u.patrolB={x:u.x + (u.team===0 ? -160 : 160), y:u.y};
+      u.patrolT=0; u.patrolDir=1; u.manual=false;
+    }
+    G.manualUnit = null;
+    toast('Отряд патрулирует');
+  } else if (order==='follow'){
+    if (!squadGeneral){
+      squadGeneral = makeGeneral(selectedSquad[0].team, selectedSquad[0].x, selectedSquad[0].y,
+        'Генерал ' + (units.filter(x=>x.general).length + 1));
+    }
+    for (const u of selectedSquad){
+      u.order='followGen'; u.general=squadGeneral; u.manual=false;
+    }
+    G.manualUnit = null;
+    toast('Отряд следует за генералом');
+  } else if (order==='retreat'){
+    // ОТСТУПЛЕНИЕ ОТДЕЛЬНОГО ОТРЯДА
+    for (const u of selectedSquad) u.squadRetreat = true;
+    G.manualUnit = null;
+    toast('Отряд отступает в безопасную зону (' + selectedSquad.length + ')');
+  }
+  updateOrdersPanel();
+}
+ordersEl.addEventListener('pointerdown', e => {
+  const t = e.target.closest('.ob'); if (!t) return;
+  e.preventDefault(); applyOrder(t.dataset.o);
+});
+
+cvs.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  try { cvs.setPointerCapture(e.pointerId); } catch(_){}
+  pointerDown = true;
+  pressStart = performance.now()/1000;
+  longPressFired = false;
+  toLocal(e); pressX=px; pressY=py;
+
+  if (G.pathMode){ drawingPath=true; pathDraw=[{x:px,y:py}]; return; }
+
+  const u = pickUnitAt(px,py);
+  if (u){ dragUnit = u; return; }
+
+  const s = pickShipAt(px,py);
+  if (s){ tryUnboard(s); return; }
+
+  if (tryDeploy(px,py)) G.deployCd = 0.2;
+});
+
+cvs.addEventListener('pointermove', e => {
+  if (!pointerDown) return;
+  toLocal(e);
+
+  if (!longPressFired && !G.pathMode &&
+      performance.now()/1000 - pressStart > LONG_PRESS &&
+      Math.hypot(px-pressX, py-pressY) < 14){
+    longPressFired = true;
+    const u = pickUnitAt(pressX, pressY, 40);
+    if (u) selectSquad(u);
+  }
+
+  if (drawingPath){
+    const last = pathDraw[pathDraw.length-1];
+    if (!last || Math.hypot(px-last.x, py-last.y) > 18) pathDraw.push({x:px,y:py});
+    return;
+  }
+  if (dragUnit && !isWater(px,py)){ dragUnit.x = px; dragUnit.y = py; }
+});
+
+cvs.addEventListener('pointerup', e => {
+  pointerDown = false;
+  if (drawingPath){
+    drawingPath = false;
+    if (pathDraw.length>1 && selectedSquad.length>0){
+      for (const u of selectedSquad){
+        u.order='path'; u.path = pathDraw.map(p=>({x:p.x,y:p.y})); u.pathIndex=0;
+      }
+      updateOrdersPanel();
+    } else if (pathDraw.length>1){
+      const u = pickUnitAt(pathDraw[0].x, pathDraw[0].y, 40);
+      if (u){
+        selectSquad(u);
+        for (const o of selectedSquad){
+          o.order='path'; o.path = pathDraw.map(p=>({x:p.x,y:p.y})); o.pathIndex=0;
+        }
+        updateOrdersPanel();
+      }
+    }
+    pathDraw=[]; return;
+  }
+  if (dragUnit){
+    const s = pickShipAt(dragUnit.x, dragUnit.y);
+    if (!s || !tryBoardUnit(dragUnit, s)){}
+    dragUnit = null; longPressFired = false; return;
+  }
+  longPressFired = false;
+});
+
+cvs.addEventListener('pointercancel', () => {
+  pointerDown=false; dragUnit=null; drawingPath=false; pathDraw=[];
+});
+cvs.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('gesturestart', e => e.preventDefault());
+
+/* ================= ОТРИСОВКА ================= */
+function getBiome(){ return BIOMES.find(b=>b.id===MAP.biome) || BIOMES[0]; }
+
+function render(){
+  const B = getBiome();
+  ctx.fillStyle = B.ground; ctx.fillRect(0,0,W,H);
+  drawBiomeDecor(B);
+  drawSafeZones();
+
+  ctx.strokeStyle = B.grid; ctx.lineWidth = 1;
+  ctx.beginPath();
+  const g = 44;
+  for (let x=0; x<W; x+=g){ ctx.moveTo(x+.5, field.top); ctx.lineTo(x+.5, field.bottom); }
+  for (let y=field.top; y<field.bottom; y+=g){ ctx.moveTo(0, y+.5); ctx.lineTo(W, y+.5); }
+  ctx.stroke();
+
+  if (!G.freePlace && !G.sandbox){
+    ctx.fillStyle='rgba(70,160,255,.03)';
+    ctx.fillRect(0, field.mid, W, field.bottom-field.mid);
+  }
+  ctx.setLineDash([6,9]);
+  ctx.strokeStyle = 'rgba(90,180,255,.18)';
+  ctx.beginPath(); ctx.moveTo(0, field.mid+.5); ctx.lineTo(W, field.mid+.5); ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (MAP.water==='river') drawRiver();
+  else for (const l of LAKES) drawLake(l);
+
+  for (const f of FORTS) drawFort(f);
+  drawBase(enemyBase, 1);
+  drawBase(playerBase, 0);
+  for (const s of ships) drawShip(s);
+  for (const u of units) drawUnit(u);
+  drawGenerals();
+
+  if (selectedSquad.length){
+    ctx.strokeStyle='rgba(127,224,255,.5)'; ctx.lineWidth=1;
+    for (const u of selectedSquad){
+      if (u.onShip) continue;
+      ctx.beginPath(); ctx.arc(u.x,u.y,u.T.r+7,0,Math.PI*2); ctx.stroke();
+    }
+  }
+  if (pathDraw.length>1) drawPath(pathDraw,'#ffe38a',true);
+  for (const u of selectedSquad) if (u.order==='path' && u.path) drawPath(u.path,'rgba(127,224,255,.55)',false);
+
+  for (const f of fx){
+    const a = f.life/f.max;
+    if (f.type==='burst'){
+      ctx.globalAlpha=a*0.9; ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(f.x,f.y,f.r*(1.7-a*0.7),0,Math.PI*2); ctx.stroke();
+    } else if (f.type==='line'){
+      ctx.globalAlpha=a*0.75; ctx.strokeStyle='#ffe9a8'; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(f.x1,f.y1); ctx.lineTo(f.x2,f.y2); ctx.stroke();
+    } else if (f.type==='fire'){
+      ctx.globalAlpha=a;
+      const rr = 5+(1-a)*8;
+      const grd = ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,rr);
+      grd.addColorStop(0,'rgba(255,220,80,.95)');
+      grd.addColorStop(0.5,'rgba(255,120,30,.6)');
+      grd.addColorStop(1,'rgba(120,30,0,0)');
+      ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(f.x,f.y,rr,0,Math.PI*2); ctx.fill();
+    } else if (f.type==='marker'){
+      ctx.globalAlpha=a; ctx.strokeStyle=f.col; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(f.x,f.y,18+(1-a)*20,0,Math.PI*2); ctx.stroke();
+    } else if (f.type==='heal'){
+      ctx.globalAlpha=a;
+      ctx.fillStyle='rgba(140,255,180,.9)';
+      const s = 1 + (1-a)*3;
+      ctx.fillRect(f.x - s/2, f.y - 6, s, 12);
+      ctx.fillRect(f.x - 6, f.y - s/2, 12, s);
+    }
+  }
+  ctx.globalAlpha=1;
+
+  if (G.manualUnit && G.manualUnit.hp>0){
+    const u = G.manualUnit;
+    ctx.strokeStyle='#ffe38a'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(u.x,u.y,u.T.r+10,0,Math.PI*2); ctx.stroke();
+  }
+
+  if (dragUnit){
+    ctx.strokeStyle='#7fe0ff'; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.arc(dragUnit.x,dragUnit.y,dragUnit.T.r+12,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if (G.retreatP || G.retreatE){
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('ОТСТУПЛЕНИЕ…', W/2, field.mid + 4);
+  }
+}
+
+function drawSafeZones(){
+  ctx.fillStyle = 'rgba(255,80,110,.08)';
+  ctx.fillRect(0, 0, W, field.top);
+  ctx.strokeStyle = 'rgba(255,120,140,.35)';
+  ctx.lineWidth = 1.5; ctx.setLineDash([10,6]);
+  ctx.beginPath(); ctx.moveTo(0, field.top+.5); ctx.lineTo(W, field.top+.5); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,180,190,.5)';
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('БЕЗОПАСНАЯ ЗОНА КРАСНЫХ' + (G.heal?' · лечение':'') , 10, field.top - 6);
+
+  const yb = field.bottom;
+  ctx.fillStyle = 'rgba(80,180,255,.08)';
+  ctx.fillRect(0, yb, W, H - yb);
+  ctx.strokeStyle = 'rgba(120,200,255,.35)';
+  ctx.lineWidth = 1.5; ctx.setLineDash([10,6]);
+  ctx.beginPath(); ctx.moveTo(0, yb+.5); ctx.lineTo(W, yb+.5); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(160,220,255,.55)';
+  ctx.fillText('БЕЗОПАСНАЯ ЗОНА СИНИХ' + (G.heal?' · лечение':''), 10, yb + 14);
+}
+
+function drawPath(path,col,preview){
+  ctx.strokeStyle=col; ctx.lineWidth=preview?2.5:1.5;
+  ctx.setLineDash(preview?[8,6]:[4,6]);
+  ctx.beginPath(); ctx.moveTo(path[0].x,path[0].y);
+  for (let i=1;i<path.length;i++) ctx.lineTo(path[i].x,path[i].y);
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle=col;
+  for (let i=0;i<path.length;i+=Math.max(1,Math.floor(path.length/6))){
+    ctx.beginPath(); ctx.arc(path[i].x,path[i].y,3,0,Math.PI*2); ctx.fill();
+  }
+}
+function drawGenerals(){
+  const seen=new Set();
+  for (const u of units){
+    const g = u.general;
+    if (!g || seen.has(g)) continue;
+    seen.add(g);
+    ctx.globalAlpha=0.08;
+    ctx.fillStyle = g.team===0?'#7fe0ff':'#ff8a99';
+    ctx.beginPath(); ctx.arc(g.x,g.y,g.aura,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle = g.team===0?'#bff0ff':'#ffc4cc';
+    ctx.beginPath();
+    for (let i=0;i<10;i++){
+      const ang = i*Math.PI/5 - Math.PI/2;
+      const rr = i%2===0?g.r:g.r*0.45;
+      const xx = g.x + Math.cos(ang)*rr, yy = g.y + Math.sin(ang)*rr;
+      i===0?ctx.moveTo(xx,yy):ctx.lineTo(xx,yy);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#0a0d13'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#0a0d13'; ctx.font='bold 10px monospace'; ctx.textAlign='center';
+    ctx.fillText(orderGlyph(g.order), g.x, g.y+4);
+  }
+}
+function orderGlyph(o){
+  return {attack:'!',hold:'#',patrol:'~',followGen:'★',path:'>',manual:'M'}[o]||'!';
+}
+function drawBiomeDecor(B){
+  ctx.save(); ctx.globalAlpha=0.12;
+  for (let i=0;i<60;i++){
+    const x = ((i*97.13)%W);
+    const y = field.top + ((i*53.71)%(field.bottom-field.top));
+    const s = 2+(i%4);
+    if (B.id==='desert'){ ctx.fillStyle='#e6be6a'; ctx.beginPath(); ctx.arc(x,y,s,0,Math.PI*2); ctx.fill(); }
+    else if (B.id==='winter'){ ctx.fillStyle='#cfe0ff'; ctx.beginPath(); ctx.arc(x,y,s*0.7,0,Math.PI*2); ctx.fill(); }
+    else if (B.id==='forest'||B.id==='jungle'){
+      ctx.fillStyle='#3aa060';
+      ctx.beginPath(); ctx.moveTo(x,y-s*1.6); ctx.lineTo(x+s,y+s); ctx.lineTo(x-s,y+s);
+      ctx.closePath(); ctx.fill();
+    } else if (B.id==='savanna'){ ctx.fillStyle='#c9b45a'; ctx.fillRect(x,y,1.5,s*2); }
+    else { ctx.fillStyle='#6fbf7a'; ctx.fillRect(x,y,1.5,s); }
+  }
+  ctx.restore();
+}
+function drawRiver(){
+  const steps=24;
+  ctx.beginPath();
+  ctx.moveTo(0, RIVER.y(0));
+  for (let i=1;i<=steps;i++){ const x=W*i/steps; ctx.lineTo(x, RIVER.y(x)); }
+  ctx.lineTo(W, RIVER.y(W));
+  for (let i=steps;i>=0;i--){ const x=W*i/steps; ctx.lineTo(x, RIVER.y(x)+RIVER.width); }
+  ctx.closePath();
+  ctx.fillStyle='rgba(50,110,180,.34)'; ctx.fill();
+  ctx.strokeStyle='rgba(110,180,255,.35)'; ctx.lineWidth=1; ctx.stroke();
+  for (const bf of RIVER.bridges){
+    const bx = W*bf, by = RIVER.y(bx);
+    ctx.fillStyle='rgba(180,150,100,.85)';
+    ctx.fillRect(bx-44, by-RIVER.width/2-4, 88, RIVER.width+8);
+    ctx.strokeStyle='rgba(255,220,160,.55)'; ctx.lineWidth=1;
+    for (let i=-44;i<=44;i+=9){
+      ctx.beginPath(); ctx.moveTo(bx+i,by-RIVER.width/2-4); ctx.lineTo(bx+i,by+RIVER.width/2+4); ctx.stroke();
+    }
+  }
+}
+function drawLake(l){
+  ctx.beginPath(); ctx.arc(l.x,l.y,l.r,0,Math.PI*2);
+  ctx.fillStyle='rgba(50,110,180,.34)'; ctx.fill();
+  ctx.strokeStyle='rgba(110,180,255,.32)'; ctx.lineWidth=1; ctx.stroke();
+}
+function drawFort(f){
+  if (f.hp<=0) return;
+  const col = f.team===-1 ? f.type.color : f.team===0?'#4fb8ff':'#ff5566';
+  ctx.globalAlpha=0.05; ctx.fillStyle=col;
+  ctx.beginPath(); ctx.arc(f.x,f.y,f.type.range,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.fillStyle='rgba(20,26,36,.85)';
+  ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=col; ctx.lineWidth=2; ctx.stroke();
+  if (f.type.id==='wood'){
+    ctx.strokeStyle=f.type.color; ctx.lineWidth=1.5;
+    for (let i=-f.r+6;i<f.r;i+=6){
+      ctx.beginPath(); ctx.moveTo(f.x+i,f.y-f.r+4); ctx.lineTo(f.x+i,f.y+f.r-4); ctx.stroke();
+    }
+  } else {
+    ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1;
+    for (let i=-f.r+6;i<f.r;i+=8){
+      ctx.beginPath(); ctx.moveTo(f.x+i,f.y-f.r+4); ctx.lineTo(f.x+i,f.y+f.r-4); ctx.stroke();
+    }
+    for (let j=-f.r+8;j<f.r;j+=8){
+      ctx.beginPath(); ctx.moveTo(f.x-f.r+4,f.y+j); ctx.lineTo(f.x+f.r-4,f.y+j); ctx.stroke();
+    }
+  }
+  ctx.fillStyle=col; ctx.fillRect(f.x-5,f.y-5,10,10);
+  ctx.strokeStyle=col; ctx.lineWidth=1.5;
+  for (let a=0;a<8;a++){
+    const ang=a*Math.PI/4;
+    ctx.beginPath();
+    ctx.moveTo(f.x+Math.cos(ang)*(f.r-5), f.y+Math.sin(ang)*(f.r-5));
+    ctx.lineTo(f.x+Math.cos(ang)*(f.r+2), f.y+Math.sin(ang)*(f.r+2));
+    ctx.stroke();
+  }
+  const p = Math.max(0,f.hp/f.maxHp), w = f.r*2.2;
+  ctx.fillStyle='rgba(0,0,0,.4)'; ctx.fillRect(f.x-w/2, f.y-f.r-10, w, 3);
+  ctx.fillStyle = f.team===0?'#7fe0ff':f.team===1?'#ff8a99':'#c8d2de';
+  ctx.fillRect(f.x-w/2, f.y-f.r-10, w*p, 3);
+  if (f.burning>0){
+    ctx.strokeStyle='rgba(255,150,50,'+Math.min(1,f.burning/3)+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(f.x,f.y,f.r+5+Math.sin(G.t*8)*2,0,Math.PI*2); ctx.stroke();
+  }
+}
+function drawShip(s){
+  const col = s.team===0?'#4fb8ff':'#ff5566';
+  const S = s.S;
+  ctx.fillStyle='rgba(0,0,0,.35)';
+  ctx.beginPath(); ctx.ellipse(s.x+2,s.y+4,S.r,S.r*0.55,0,0,Math.PI*2); ctx.fill();
+  ctx.save(); ctx.translate(s.x,s.y);
+  ctx.fillStyle = s.team===0?'rgba(30,60,110,.95)':'rgba(100,30,40,.95)';
+  ctx.beginPath(); ctx.ellipse(0,0,S.r,S.r*0.55,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=col; ctx.lineWidth=1.6; ctx.stroke();
+  ctx.fillStyle='rgba(180,150,100,.5)';
+  ctx.beginPath(); ctx.ellipse(0,0,S.r*0.7,S.r*0.35,0,0,Math.PI*2); ctx.fill();
+  const n=S.guns;
+  for (let i=0;i<n;i++){
+    const t = n===1?0:(i/(n-1)-0.5)*2;
+    const cx = t*S.r*0.7;
+    ctx.fillStyle='#e8e0c0';
+    ctx.beginPath(); ctx.arc(cx,-S.r*0.4,1.8,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx,S.r*0.4,1.8,0,Math.PI*2); ctx.fill();
+  }
+  ctx.strokeStyle=col; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(0,-S.r*0.7); ctx.lineTo(0,S.r*0.7); ctx.stroke();
+  ctx.fillStyle=col; ctx.fillRect(0,-S.r*0.7,S.r*0.5,S.r*0.28);
+  if (s.cargo.length>0){
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    for (let i=0;i<s.cargo.length;i++){
+      ctx.beginPath(); ctx.arc(-S.r*0.5+i*6, S.r*0.75, 1.7, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.restore();
+  const p = Math.max(0,s.hp/s.maxHp), w=S.r*2;
+  ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(s.x-w/2, s.y-S.r-12, w, 3);
+  ctx.fillStyle=col; ctx.fillRect(s.x-w/2, s.y-S.r-12, w*p, 3);
+}
+function drawBase(b,team){
+  const main = team===0?'#3ea8ff':'#ff4d6a';
+  const p = Math.max(0,b.hp/b.max);
+  ctx.fillStyle = team===0?'rgba(62,168,255,.07)':'rgba(255,77,106,.07)';
+  ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
+  ctx.lineWidth=2; ctx.strokeStyle='rgba(255,255,255,.10)';
+  ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle=main; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.arc(b.x,b.y,b.r,-Math.PI/2,-Math.PI/2+p*Math.PI*2); ctx.stroke();
+  ctx.fillStyle=main; ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill();
+}
+function drawUnit(u){
+  if (u.onShip){
+    const col = u.team===0?'#4fb8ff':'#ff5566';
+    ctx.fillStyle=col; ctx.beginPath(); ctx.arc(u.x,u.y,3.5,0,Math.PI*2); ctx.fill();
+    return;
+  }
+  const col = u.team===0?'#4fb8ff':'#ff5566';
+  const r = u.T.r;
+  ctx.save(); ctx.translate(u.x,u.y);
+  ctx.fillStyle=col; ctx.strokeStyle=col;
+  if (u.T.shape==='circle'){ ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); }
+  else if (u.T.shape==='tri'){
+    ctx.rotate(u.team===0?-Math.PI/2:Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(0,-r*1.15); ctx.lineTo(r*0.95,r*0.85); ctx.lineTo(-r*0.95,r*0.85);
+    ctx.closePath(); ctx.fill();
+  } else if (u.T.shape==='hex'){
+    ctx.beginPath();
+    for (let i=0;i<6;i++){
+      const a=i*Math.PI/3-Math.PI/2;
+      const xx=Math.cos(a)*r, yy=Math.sin(a)*r;
+      i===0?ctx.moveTo(xx,yy):ctx.lineTo(xx,yy);
+    }
+    ctx.closePath(); ctx.fill();
+  } else ctx.fillRect(-r*0.85,-r*0.85,r*1.7,r*1.7);
+  ctx.restore();
+
+  if (u.order==='hold'){
+    ctx.strokeStyle='rgba(127,224,255,.5)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(u.x,u.y,r+5,0,Math.PI*2); ctx.stroke();
+  } else if (u.order==='patrol'){
+    ctx.strokeStyle='rgba(255,220,120,.5)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(u.x,u.y,r+5,0,Math.PI*2); ctx.stroke();
+  } else if (u.retreating || u.squadRetreat){
+    ctx.strokeStyle='rgba(140,255,180,.7)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(u.x,u.y,r+6,0,Math.PI*2); ctx.stroke();
+  }
+
+  if (u.hp<u.maxHp){
+    const w=r*2.3, y=u.y-r-6;
+    ctx.fillStyle='rgba(255,255,255,.14)'; ctx.fillRect(u.x-w/2, y, w, 2);
+    ctx.fillStyle = u.team===0?'#7fe0ff':'#ff8a99';
+    ctx.fillRect(u.x-w/2, y, w*Math.max(0,u.hp/u.maxHp), 2);
+  }
+}
+
+/* ================= HUD / СБРОС ================= */
+let hudTimer=0;
+function updateHUD(){
+  hudGp.textContent = G.sandbox?'◆ ∞':'◆ '+Math.floor(G.gold);
+  hudGe.textContent = G.sandbox?'∞ ◆':Math.floor(G.egold)+' ◆';
+  syncUI();
+}
+function resetGame(){
+  units.length=0; ships.length=0; fx.length=0;
+  playerBase.hp = playerBase.max = BASE_HP;
+  enemyBase.hp  = enemyBase.max  = BASE_HP;
+  G.gold=START_GOLD; G.egold=START_GOLD;
+  G.t=0; G.sel=0; G.cat=0; G.over=null; G.aiTimer=1.2; G.deployCd=0;
+  G.retreatP=false; G.retreatE=false;
+  G.manualUnit=null;
+  G.stats = { events: [] };
+  dragUnit=null; clearSquad();
+  for (const f of FORTS){ f.team=-1; f.hp=f.maxHp; f.timer=0; f.burning=0; }
+  overEl.classList.remove('on');
+  statsEl.classList.remove('on');
+  layout();
+  buildUnitButtons();
+  syncUI(); updateHUD();
+  updateBattleBar();
+}
+
+/* ================= ЦИКЛ ================= */
+let last=0;
+function loop(ts){
+  if (!last) last=ts;
+  let dt=(ts-last)/1000;
+  last=ts;
+  if (dt>0.06) dt=0.06;
+  step(dt);
+  render();
+  updateBattleBar();
+
+  if (toastTimer > 0){
+    toastTimer -= dt;
+    if (toastTimer <= 0) toastEl.classList.remove('on');
+  }
+
+  hudTimer -= dt;
+  if (hudTimer<=0){ updateHUD(); hudTimer=0.1; }
+  requestAnimationFrame(loop);
+}
+
+/* ================= СТАРТ ================= */
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', ()=>setTimeout(resize,120));
+resize();
+buildUnitButtons();
+resetGame();
+setupEl.classList.add('on');
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
